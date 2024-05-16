@@ -44,5 +44,10 @@ stock_statistics_df = spark.sql("""
 # Mostra il DataFrame con le statistiche
 stock_statistics_df.show()
 
+# stock_statistics_df.write \
+#     .format("csv") \
+#     .mode("overwrite") \
+#     .option("header", "true") \
+#     .save("file:///home/addi/bigData/secondo_progetto/Big_Data_Second_Project/spark_sql/first_question/csv_file")
 # Chiudi la sessione Spark
 spark.stop()

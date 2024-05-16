@@ -85,11 +85,13 @@ industry_report_df.show()
 
 # # Mostra il report finale
 # final_report_df.show(truncate=False)
+
 # Salva il DataFrame finale su Hadoop HDFS
-industry_report_df.write \
-    .format("csv") \
-    .mode("overwrite") \
-    .save("file:///home/addi/bigData/secondo_progetto/spark_sql")
+# industry_report_df.write \
+#     .format("csv") \
+#     .mode("overwrite") \
+#     .option("header", "true") \
+#     .save("file:///home/addi/bigData/secondo_progetto/spark_sql")
 
 # Chiudi la sessione Spark
 spark.stop()
