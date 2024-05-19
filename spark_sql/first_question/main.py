@@ -21,10 +21,11 @@ spark = SparkSession.builder \
     .getOrCreate()
 
 merged_df = spark.read.csv(input_filepath, header = True)
+merged_df = merged_df.orderBy("ticker", "date")
 
-merged_df.show()
+merged_df.show(truncate = False)
 
-# Registra i DataFrame come tabelle temporanee per l'utilizzo di SparkSQL
+# # Registra i DataFrame come tabelle temporanee per l'utilizzo di SparkSQL
 merged_df.createOrReplaceTempView("merged_table")
 
 # Calcola le statistiche richieste per ciascuna azione e anno
@@ -48,6 +49,6 @@ stock_statistics_df.show()
 #     .format("csv") \
 #     .mode("overwrite") \
 #     .option("header", "true") \
-#     .save("file:///home/addi/bigData/secondo_progetto/Big_Data_Second_Project/spark_sql/first_question/csv_file")
+#     .save("file:///home/addi/bigData/secondo_progetto/Big_Data_Second_Project/spark_sql/first_question/csv_file_copy")
 # Chiudi la sessione Spark
 spark.stop()
