@@ -1,45 +1,67 @@
+#!/usr/bin/env python3
 import sys
+import ast
 from collections import defaultdict
-import numpy as np
 
-current_key = None
-current_data = defaultdict(lambda: {"tickers_percent_change": {}, "closes": [], "tickers_volume": {}})
+def calculate_percentage_change(start, end):
+    return ((end - start) / start) * 100
 
-for line in sys.stdin:
-    line = line.strip()
-    key, values = line.split('\t')
-    sector, industry, year = key.split(',')
-    key = (sector, industry, year)
-    ticker, close, low, high, volume, percent_change = values.split(',')
+def main():
+    data = defaultdict(list)
+    
+    for line in sys.stdin:
+        key, value = line.strip().split('\t')
+        key = ast.literal_eval(key)
+        value = ast.literal_eval(value)
+        data[key].append(value)
+    
+    result = []
+    
+    for (sector, industry, year), values in data.items():
+        values.sort(key=lambda x: (x[0], x[3]))  # Sort by ticker and date
 
-    try:
-        close = float(close)
-        low = float(low)
-        high = float(high)
-        volume = int(volume)
-        percent_change = float(percent_change)
+        industry_first_close_sum = {}
+        industry_last_close_sum = {}
         
-        if ticker not in current_data[key]["tickers_percent_change"].keys():
-            current_data[key]["tickers_percent_change"][ticker] = percent_change
-
-        if ticker not in current_data[key]["tickers_volume"].keys():
-            current_data[key]["tickers_volume"][ticker] = volume
-
-        current_data[key]["closes"].append(close)
-    except ValueError:
-        continue
-
-for key in current_data.keys():
-        # Find the ticker with the maximum percent change
-
-
-        max_ticker_increment = max(current_data[key]["tickers_percent_change"].items(), key=lambda x: x[1])
-        max_percent_change = max_ticker_increment[1]
-        ticker_max_percent_change = max_ticker_increment[0]
+        max_increment = -float('inf')
+        max_increment_ticker = None
+        max_volume = -float('inf')
+        max_volume_ticker = None
+        ticker_close_prices = defaultdict(list)
         
-        # Find the ticker with the maximum volume
-        max_ticker_volume = max(current_data[key]["tickers_volume"].items(), key=lambda x: x[1])
-        max_volume = max_ticker_volume[1]
-        ticker_max_volume = max_ticker_volume[0]
+        for value in values:
+            ticker, close, volume, date = value
+            ticker_close_prices[ticker].append((date, close))
 
-        print(f"{key[0]}\t{key[1]}\t{key[2]}\t{ticker_max_percent_change}\t{max_percent_change}\t{ticker_max_volume}\t{max_volume}")
+            if volume > max_volume:
+                max_volume = volume
+                max_volume_ticker = (ticker, volume)
+        
+        for ticker, close_prices in ticker_close_prices.items():
+            close_prices.sort(key=lambda x: x[0])  # Sort by date
+            
+            first_close = close_prices[0][1]
+            last_close = close_prices[-1][1]
+            
+            increment = calculate_percentage_change(first_close, last_close)
+            
+            if increment > max_increment:
+                max_increment = increment
+                max_increment_ticker = (ticker, increment)
+            
+            if ticker not in industry_first_close_sum:
+                industry_first_close_sum[ticker] = first_close
+            industry_last_close_sum[ticker] = last_close
+        
+        industry_first_total = sum(industry_first_close_sum.values())
+        industry_last_total = sum(industry_last_close_sum.values())
+        
+        industry_change = calculate_percentage_change(industry_first_total, industry_last_total)
+        
+        result.append((sector, industry, year, industry_change, max_increment_ticker, max_volume_ticker))
+    
+    for sector, industry, year, industry_change, max_increment_ticker, max_volume_ticker in sorted(result, key=lambda x: x[3], reverse=True):
+        print(f"{sector}\t{industry}\t{year}\t{industry_change:.2f}%\t{max_increment_ticker}\t{max_volume_ticker}")
+
+if __name__ == "__main__":
+    main()
