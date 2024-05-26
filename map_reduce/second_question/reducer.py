@@ -13,7 +13,9 @@ def main():
         key, value = line.strip().split('\t')
         key = ast.literal_eval(key)
         value = ast.literal_eval(value)
+
         data[key].append(value)
+
     
     result = []
     
@@ -60,8 +62,8 @@ def main():
         
         result.append((sector, industry, year, industry_change, max_increment_ticker, max_volume_ticker))
     
-    for sector, industry, year, industry_change, max_increment_ticker, max_volume_ticker in sorted(result, key=lambda x: x[3], reverse=True):
-        print(f"{sector}\t{industry}\t{year}\t{industry_change:.2f}%\t{max_increment_ticker}\t{max_volume_ticker}")
+    for sector, industry, year, industry_change, max_increment_ticker, max_volume_ticker in sorted(result, key=lambda x: (x[0], x[3]), reverse=True):
+        print(f"{sector}\t{industry}\t{year}\t{industry_change:.2f}\t{max_increment_ticker[0]}\t{max_increment_ticker[1]}\t{max_volume_ticker[0]}\t{max_volume_ticker[1]}")
 
 if __name__ == "__main__":
     main()
