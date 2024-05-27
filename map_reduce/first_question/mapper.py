@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import csv
+import time
 
 def read_input(file):
     reader = csv.reader(file)
@@ -10,6 +11,8 @@ def read_input(file):
     return data
 
 def main():
+    start_time = time.time()
+
     input = read_input(sys.stdin)
     header = input.pop(0)  # skip header
     
@@ -30,32 +33,11 @@ def main():
             value = f"{close};{low};{high};{volume};{date}"
             
             print(f"{key}\t{value}")
+    
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    with open('/home/addi/bigData/secondo_progetto/Big_Data_Second_Project/map_reduce/first_question/time_execution/execution_time.txt', 'a') as f:
+        f.write(f"Mapper executed in: {elapsed_time:.2f} seconds\n")
 
 if __name__ == "__main__":
     main()
-
-# import sys
-
-# def main():
-#     input = sys.stdin
-#     header_skipped = False
-    
-#     for line in input:
-#         line = line.strip()
-#         # Skip the header line
-#         if not header_skipped:
-#             header_skipped = True
-#             continue
-        
-#         # Parse the CSV line
-#         parts = line.split(',')
-#         if len(parts) == 12:
-#             ticker, open_price, close, low, high, volume, date, year, exchange, name, sector, industry = parts
-#             try:
-#                 # Print the values in the desired format
-#                 print(f"{ticker}\t{name},{year},{close},{low},{high},{volume}")
-#             except ValueError:
-#                 continue
-
-# if __name__ == "__main__":
-#     main()

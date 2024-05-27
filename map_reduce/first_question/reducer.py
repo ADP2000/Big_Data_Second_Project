@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import sys
 from collections import defaultdict
+import time
+
 
 def calculate_percentage_change(start, end):
     return ((end - start) / start) * 100
@@ -22,6 +24,8 @@ def parse_key_value(line):
     return (ticker, name, year), (close, low, high, volume, date)
 
 def main():
+    start_time = time.time()
+
     data = defaultdict(list)
     
     for line in sys.stdin:
@@ -45,6 +49,12 @@ def main():
     
     for ticker, name, year, percentage_change, min_price, max_price, avg_volume in sorted(result, key=lambda x: (x[0], x[2])):
         print(f"{ticker}\t{name}\t{year}\t{percentage_change:.2f}\t{min_price}\t{max_price}\t{avg_volume:.2f}")
+    
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    with open('/home/addi/bigData/secondo_progetto/Big_Data_Second_Project/map_reduce/first_question/time_execution/execution_time.txt', 'a') as f:
+        f.write(f"Reducer executed in: {elapsed_time:.2f} seconds\n")
+
 
 if __name__ == "__main__":
     main()

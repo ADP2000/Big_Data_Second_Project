@@ -1,0 +1,3 @@
+Mapper executed in: 96.18 seconds
+Reducer executed in: 30.91 seconds
+Map-Reduce total time execution: 127.09 
