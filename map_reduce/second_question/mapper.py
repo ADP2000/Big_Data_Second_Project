@@ -2,6 +2,7 @@
 import sys
 import csv
 from datetime import datetime
+import time
 
 def read_input(file):
     reader = csv.reader(file)
@@ -11,6 +12,7 @@ def read_input(file):
     return data
 
 def main():
+    start_time = time.time()
     input = read_input(sys.stdin)
     header = input.pop(0)  # skip header
     
@@ -35,6 +37,11 @@ def main():
             value = (ticker, close, volume, date)
             
             print(f"{key}\t{value}")
+    
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    with open('/home/addi/bigData/secondo_progetto/Big_Data_Second_Project/map_reduce/second_question/time_execution/execution_time.txt', 'a') as f:
+        f.write(f"{elapsed_time:.2f}\n")
 
 if __name__ == "__main__":
     main()

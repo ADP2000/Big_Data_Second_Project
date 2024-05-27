@@ -1,0 +1,1 @@
+Map Reduce total time: 366,4 seconds

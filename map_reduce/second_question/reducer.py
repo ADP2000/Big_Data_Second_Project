@@ -2,11 +2,13 @@
 import sys
 import ast
 from collections import defaultdict
+import time
 
 def calculate_percentage_change(start, end):
     return ((end - start) / start) * 100
 
 def main():
+    start_time = time.time()
     data = defaultdict(list)
     
     for line in sys.stdin:
@@ -64,6 +66,11 @@ def main():
     
     for sector, industry, year, industry_change, max_increment_ticker, max_volume_ticker in sorted(result, key=lambda x: (x[0], x[3]), reverse=True):
         print(f"{sector}\t{industry}\t{year}\t{industry_change:.2f}\t{max_increment_ticker[0]}\t{max_increment_ticker[1]}\t{max_volume_ticker[0]}\t{max_volume_ticker[1]}")
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    with open('/home/addi/bigData/secondo_progetto/Big_Data_Second_Project/map_reduce/second_question/time_execution/execution_time.txt', 'a') as f:
+        f.write(f"Reducer: {elapsed_time:.2f}\n")
 
 if __name__ == "__main__":
     main()
