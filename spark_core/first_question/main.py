@@ -2,6 +2,7 @@ from pyspark import SparkConf, SparkContext
 import argparse
 import csv
 from io import StringIO
+import time
 
 def parse_line(line):
     reader = csv.reader(StringIO(line))
@@ -43,6 +44,7 @@ if __name__ == "__main__":
     input_filepath = args.input_path
     output_filepath = args.output_path
     
+    start_time = time.time()
     conf = SparkConf().setAppName("Stock Statistics")
     sc = SparkContext(conf=conf)
 
@@ -66,3 +68,7 @@ if __name__ == "__main__":
     # Save the results to the output path
     formatted_results.saveAsTextFile(output_filepath)
     sc.stop()
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    with open('/home/addi/bigData/secondo_progetto/Big_Data_Second_Project/spark_core/first_question/time_execution/execution_time.txt', 'a') as f:
+        f.write(f"{elapsed_time:.2f} seconds\n")
