@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, first, last, max as spark_max
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 import argparse
 import time
 
@@ -19,14 +20,30 @@ spark = SparkSession.builder \
     .appName("Stock Statistics") \
     .getOrCreate()
 
-df = spark.read.csv(input_filepath, header = True)
+schema = StructType([
+    StructField("ticker", StringType(), True),
+    StructField("open_price", DoubleType(), True),
+    StructField("close", DoubleType(), True),
+    StructField("low", DoubleType(), True),
+    StructField("high", DoubleType(), True),
+    StructField("volume", IntegerType(), True),
+    StructField("date", StringType(), True),
+    StructField("year", IntegerType(), True),
+    StructField("exchange", StringType(), True),
+    StructField("name", StringType(), True),
+    StructField("sector", StringType(), True),
+    StructField("industry", StringType(), True)
+])
 
+# Leggere il file CSV con lo schema definito
+df = spark.read.option("delimiter", ";").csv(input_filepath, header=True, schema=schema)
 
 # Filtrare le righe dove 'sector' o 'industry' sono nulli
 df_filtered = df.filter(df.sector.isNotNull() & df.industry.isNotNull())
 
-# Selezionare le colonne rilevanti
-df_filtered = df_filtered.select("ticker", "close", "volume", "date", "year", "sector", "industry")
+# Mostrare i primi record per assicurarsi che il file sia letto correttamente
+df.show(5, truncate=False)
+df.printSchema()
 
 # Creare una vista temporanea per usare SQL
 df_filtered.createOrReplaceTempView("stocks")
@@ -160,11 +177,11 @@ result = spark.sql(
 result.show()
 
 # # Salvare il risultato in un file CSV
-# result.write \
-    # .format("csv") \
-    # .mode("overwrite") \
-    # .option("header", "true") \
-    # .save("file:///home/addi/bigData/secondo_progetto/Big_Data_Second_Project/spark_sql/second_question/csv_file2")
+result.write \
+    .format("csv") \
+    .mode("overwrite") \
+    .option("header", "true") \
+    .save("file:///home/addi/bigData/secondo_progetto/Big_Data_Second_Project/spark_sql/second_question/csv_file")
 # Fermare la sessione Spark
 spark.stop()
 
