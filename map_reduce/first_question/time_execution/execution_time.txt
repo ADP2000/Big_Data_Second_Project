@@ -1,3 +1,9 @@
 Mapper executed in: 96.18 seconds
 Reducer executed in: 30.91 seconds
-Map-Reduce total time execution: 127.09 
+Map-Reduce total time execution: 127.09 on localhost
+
+
+Map-Reduce total time execution: 120.42 seconds on aws cluster
+
+
+
