@@ -41,10 +41,6 @@ df = spark.read.option("delimiter", ";").csv(input_filepath, header=True, schema
 # Filtrare le righe dove 'sector' o 'industry' sono nulli
 df_filtered = df.filter(df.sector.isNotNull() & df.industry.isNotNull())
 
-# Mostrare i primi record per assicurarsi che il file sia letto correttamente
-df.show(5, truncate=False)
-df.printSchema()
-
 # Creare una vista temporanea per usare SQL
 df_filtered.createOrReplaceTempView("stocks")
 
@@ -55,10 +51,12 @@ stock_changes_df = spark.sql(
         industry,
         year,
         ticker,
-        FIRST(close) OVER (PARTITION BY sector, industry, year, ticker ORDER BY date) AS first_close,
-        LAST(close) OVER (PARTITION BY sector, industry, year, ticker ORDER BY date) AS last_close,
-        volume
+        first_value(close) OVER (PARTITION BY sector, industry, year, ticker ORDER BY date) AS first_close,
+        last_value(close) OVER (PARTITION BY sector, industry, year, ticker ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_close,
+        volume,
+        ROW_NUMBER() OVER (PARTITION BY sector, industry, year ORDER BY volume DESC) AS volume_rank
     FROM stocks
+    WHERE sector IS NOT NULL AND industry IS NOT NULL
     """
 )
 
@@ -81,6 +79,7 @@ industry_metrics_df = spark.sql(
 )
 
 industry_metrics_df.show()
+industry_metrics_df.createOrReplaceTempView("industry_metrics")
 
 
 stock_max_increment_df = spark.sql(
@@ -90,29 +89,28 @@ stock_max_increment_df = spark.sql(
         industry,
         year,
         ticker,
-        MAX((last_close - first_close) / first_close * 100) AS increment_percentage
+        (last_close - first_close) / first_close * 100 AS increment_percentage,
+        ROW_NUMBER() OVER (PARTITION BY sector, industry, year ORDER BY (last_close - first_close) / first_close * 100 DESC) AS rank
     FROM stock_changes
-    GROUP BY sector, industry, year, ticker
-    SORT BY sector, industry, year, increment_percentage DESC
     """
 )
 
-stock_max_increment_without_ticker_df = spark.sql(
+stock_max_increment_df.createOrReplaceTempView("stock_max_increment")
+
+
+stock_max_increment_filtered_df = spark.sql(
     """
     SELECT
         sector,
         industry,
         year,
-        MAX((last_close - first_close) / first_close * 100) AS increment_percentage
-    FROM stock_changes
-    GROUP BY sector, industry, year
-    SORT BY sector, industry, year, increment_percentage DESC
+        ticker,
+        increment_percentage
+    FROM stock_max_increment
+    WHERE rank = 1
     """
 )
-
-stock_max_increment_final_df = stock_max_increment_df.join(stock_max_increment_without_ticker_df, ["sector", "industry", "year", "increment_percentage"]) 
-
-# stock_max_increment_final_df.show()
+stock_max_increment_filtered_df.createOrReplaceTempView("stock_max_increment_filtered")
 
 stock_max_volume_df = spark.sql(
     """
@@ -121,35 +119,14 @@ stock_max_volume_df = spark.sql(
         industry,
         year,
         ticker,
-        MAX(volume) AS max_volume
-    FROM stocks
-    GROUP BY sector, industry, year, ticker
+        volume AS max_volume
+    FROM stock_changes
+    WHERE volume_rank = 1
     """
 )
 
 stock_max_volume_df.show()
-
-stock_max_volume_without_ticker_df = spark.sql(
-    """
-    SELECT
-        sector,
-        industry,
-        year,
-        MAX(volume) AS max_volume
-    FROM stocks
-    GROUP BY sector, industry, year
-    """
-)
-
-stock_max_volume_without_ticker_df.show()
-
-stock_max_volume_final_df = stock_max_volume_df.join(stock_max_volume_without_ticker_df, ["sector", "industry", "year", "max_volume"]) 
-
-stock_max_volume_final_df.show()
-
-stock_max_volume_final_df.createOrReplaceTempView("stock_max_volume")
-stock_max_increment_final_df.createOrReplaceTempView("stock_max_increment")
-industry_metrics_df.createOrReplaceTempView("industry_metrics")
+stock_max_volume_df.createOrReplaceTempView("stock_max_volume")
 
 result = spark.sql(
     """
@@ -157,31 +134,32 @@ result = spark.sql(
         im.sector,
         im.industry,
         im.year,
-        ((im.industry_last_total - im.industry_first_total) / im.industry_first_total * 100) AS industry_change_percentage,
-        smi.ticker AS max_increment_ticker,
-        smi.increment_percentage,
+        ((im.industry_last_total - im.industry_first_total) / im.industry_first_total) * 100 AS industry_change_percentage,
+        smif.ticker AS max_increment_ticker,
+        smif.increment_percentage,
         smv.ticker AS max_volume_ticker,
         smv.max_volume
     FROM
         industry_metrics im
     JOIN
-        stock_max_increment smi ON im.sector = smi.sector AND im.industry = smi.industry AND im.year = smi.year
+        stock_max_increment_filtered smif ON im.sector = smif.sector AND im.industry = smif.industry AND im.year = smif.year
     JOIN
         stock_max_volume smv ON im.sector = smv.sector AND im.industry = smv.industry AND im.year = smv.year
     ORDER BY
         im.sector, industry_change_percentage DESC
+
     """
 )
 
 # # Mostrare il risultato
 result.show()
 
-# # Salvare il risultato in un file CSV
-result.write \
-    .format("csv") \
-    .mode("overwrite") \
-    .option("header", "true") \
-    .save("file:///home/addi/bigData/secondo_progetto/Big_Data_Second_Project/spark_sql/second_question/csv_file")
+# Salvare il risultato in un file CSV
+# result.write \
+#     .format("csv") \
+#     .mode("overwrite") \
+#     .option("header", "true") \
+#     .save("file:///home/addi/bigData/secondo_progetto/Big_Data_Second_Project/spark_sql/second_question/csv_file")
 # Fermare la sessione Spark
 spark.stop()
 
