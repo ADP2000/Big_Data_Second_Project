@@ -39,6 +39,7 @@ def calculate_industry_stats(data):
     max_volume_ticker = None
     
     ticker_closes = {}
+    ticker_total_volumes = defaultdict(int)
     
     # ticker_volumes = defaultdict(list)
     
@@ -46,14 +47,21 @@ def calculate_industry_stats(data):
     for value in values:
         ticker, close, volume, date = value
 
-        if volume > max_volume:
-            max_volume = volume
-            max_volume_ticker = (ticker, volume)
+        # if volume > max_volume:
+        #     max_volume = volume
+        #     max_volume_ticker = (ticker, volume)
+        ticker_total_volumes[ticker] += volume
 
         if ticker not in ticker_closes:
             ticker_closes[ticker] = [(date, close)]
-        ticker_closes[ticker].append((date, close))
+        else:
+            ticker_closes[ticker].append((date, close))
     
+    for ticker, total_volume in ticker_total_volumes.items():
+            if total_volume > max_volume:
+                max_volume = total_volume
+                max_volume_ticker = (ticker, total_volume)
+
     # Calculate industry stats
     for ticker, values in ticker_closes.items():
         values_sorted = sorted(values, key=lambda x: x[0])
