@@ -32,14 +32,21 @@ def main():
         max_volume = -float('inf')
         max_volume_ticker = None
         ticker_close_prices = defaultdict(list)
+        ticker_total_volumes = defaultdict(int)
         
         for value in values:
             ticker, close, volume, date = value
             ticker_close_prices[ticker].append((date, close))
 
-            if volume > max_volume:
-                max_volume = volume
-                max_volume_ticker = (ticker, volume)
+            # if volume > max_volume:
+            #     max_volume = volume
+            #     max_volume_ticker = (ticker, volume)
+            ticker_total_volumes[ticker] += volume
+        
+        for ticker, total_volume in ticker_total_volumes.items():
+            if total_volume > max_volume:
+                max_volume = total_volume
+                max_volume_ticker = (ticker, total_volume)
         
         for ticker, close_prices in ticker_close_prices.items():
             close_prices.sort(key=lambda x: x[0])  # Sort by date
