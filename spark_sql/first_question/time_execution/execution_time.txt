@@ -1,1 +1,9 @@
-86.60 seconds
+86.60 seconds on localhost
+
+60.52 seconds on aws cluster
+
+59.23 seconds on aws cluster (1/2 greater)
+
+61.40 seconds on aws cluster (2 times greater)
+
+

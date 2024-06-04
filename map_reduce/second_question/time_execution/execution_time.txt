@@ -1,3 +1,7 @@
 Map Reduce total time: 366,04 seconds on localhost
 
-Map Reduce total time: 193,42 seconds on aws cluster
+Map Reduce total time: 97,54 seconds on aws cluster
+
+Map Reduce total time: 154,40 seconds on aws cluster (1/2 greater)
+
+Map Reduce total time: 191,07 seconds on aws cluster (2 times greater)
