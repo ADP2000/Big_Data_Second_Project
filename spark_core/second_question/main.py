@@ -47,9 +47,6 @@ def calculate_industry_stats(data):
     for value in values:
         ticker, close, volume, date = value
 
-        # if volume > max_volume:
-        #     max_volume = volume
-        #     max_volume_ticker = (ticker, volume)
         ticker_total_volumes[ticker] += volume
 
         if ticker not in ticker_closes:

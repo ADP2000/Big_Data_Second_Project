@@ -1,10 +1,10 @@
+#!/usr/bin/env python3
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import sum, max
-from pyspark.sql.functions import lag, col
-from pyspark.sql.window import Window
-
-
+from pyspark.sql.functions import col, first, last, max as spark_max
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 import argparse
+import time
+
 
 # create parser and set its arguments
 parser = argparse.ArgumentParser()
@@ -14,84 +14,179 @@ parser.add_argument("--input_path", type=str, help="Input file path")
 args = parser.parse_args()
 input_filepath = args.input_path
 
-
-# Inizializza SparkSession
+# start_time = time.time()
+# Creare una sessione Spark
 spark = SparkSession.builder \
     .appName("Stock Statistics") \
     .getOrCreate()
 
-merged_df = spark.read.csv(input_filepath, header = True)
+schema = StructType([
+    StructField("ticker", StringType(), True),
+    StructField("open_price", DoubleType(), True),
+    StructField("close", DoubleType(), True),
+    StructField("low", DoubleType(), True),
+    StructField("high", DoubleType(), True),
+    StructField("volume", IntegerType(), True),
+    StructField("date", StringType(), True),
+    StructField("year", IntegerType(), True),
+    StructField("exchange", StringType(), True),
+    StructField("name", StringType(), True),
+    StructField("sector", StringType(), True),
+    StructField("industry", StringType(), True)
+])
 
-merged_df.show()
+# Leggere il file CSV con lo schema definito
+df = spark.read.option("delimiter", ";").csv(input_filepath, header=True, schema=schema)
 
-# Calcola la quotazione dell'industria come la somma dei prezzi di chiusura di tutte le azioni dell'industria
-industry_prices_df = merged_df.groupBy("sector", "industry", "year") \
-    .agg(sum("close").alias("industry_close"))
+# Filtrare le righe dove 'sector' o 'industry' sono nulli
+df_filtered = df.filter(df.sector.isNotNull() & df.industry.isNotNull())
 
-# # Calcola la variazione percentuale della quotazione dell'industria rispetto all'anno precedente
-industry_percent_change_df = industry_prices_df.withColumn("prev_year_close", lag("industry_close", 1).over(Window.partitionBy("sector", "industry").orderBy("year"))) \
-    .withColumn("percent_change", ((col("industry_close") - col("prev_year_close")) / col("prev_year_close")) * 100)
+# Creare una vista temporanea per usare SQL
+df_filtered.createOrReplaceTempView("stocks")
 
-industry_percent_change_df.show()
+stock_changes_df = spark.sql(
+    """
+    SELECT
+        sector,
+        industry,
+        year,
+        ticker,
+        first_value(close) OVER (PARTITION BY sector, industry, year, ticker ORDER BY date) AS first_close,
+        last_value(close) OVER (PARTITION BY sector, industry, year, ticker ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_close,
+        volume,
+    FROM stocks
+    WHERE sector IS NOT NULL AND industry IS NOT NULL
+    """
+)
 
-# Calcola la variazione percentuale della quotazione di ciascuna azione
-variation_df = merged_df.withColumn("ticker_percent_change", ((merged_df["close"] - merged_df["open"]) / merged_df["open"]) * 100)
+stock_changes_df.show()
 
-# Trova l'azione dell'industria con il maggior incremento percentuale nell'anno
-max_percent_change_df = variation_df.groupBy("sector", "industry", "year") \
-    .agg(max("ticker_percent_change").alias("max_percent_change")).orderBy("sector", "industry", "year")
-    # .withColumnRenamed("ticker", "ticker_max_percent_change").orderBy("sector", "industry")
-
-ticker_max_percent_change_df = variation_df.join(max_percent_change_df, ["sector", "industry", "year"])
-ticker_max_percent_change_df.show()
-
-selected_ticker_max_percent_change_df = ticker_max_percent_change_df.select("sector", "industry", "year", "ticker", "max_percent_change").where(col("ticker_percent_change") == col("max_percent_change")).distinct()\
-    .withColumnRenamed("ticker", "ticker_max_percent_change")
-
-selected_ticker_max_percent_change_df.show()
-
-# Trova l'azione dell'industria con il maggior volume di transazioni nell'anno
-max_volume_df = merged_df.groupBy("sector", "industry", "year").agg(max("volume")\
-                .alias("max_volume"))
-                # .withColumnRenamed("ticker", "ticker_max_volume")
-
-ticker_max_volume_df = merged_df.join(max_volume_df, ["sector", "industry", "year"])
-selected_ticker_max_volume_df = ticker_max_volume_df.select("sector", "industry", "year", "ticker", "max_volume")\
-    .where(col("volume") == col("max_volume")).distinct()\
-    .withColumnRenamed("ticker", "ticker_max_volume")
+stock_changes_df.createOrReplaceTempView("stock_changes")
 
 
-selected_ticker_max_volume_df.show()
+industry_metrics_df = spark.sql(
+    """
+    SELECT
+        sector,
+        industry,
+        year,
+        SUM(first_close) AS industry_first_total,
+        SUM(last_close) AS industry_last_total
+    FROM stock_changes
+    GROUP BY sector, industry, year
+    """
+)
 
-industry_report_df = industry_percent_change_df.join(selected_ticker_max_percent_change_df, ["sector", "industry", "year"]) \
-    .join(selected_ticker_max_volume_df, ["sector", "industry", "year"]) \
-    .orderBy("sector", "percent_change", ascending=False)
+industry_metrics_df.show()
+industry_metrics_df.createOrReplaceTempView("industry_metrics")
 
-industry_report_df.show()
 
-# industry_report_selected_df = industry_report_df.select("sector", "industry", "percent_change", "ticker_max_percent_change", "max_percent_change", "ticker_max_volume", "max_volume")
+stock_max_increment_df = spark.sql(
+    """
+    SELECT
+        sector,
+        industry,
+        year,
+        ticker,
+        (last_close - first_close) / first_close * 100 AS increment_percentage,
+        ROW_NUMBER() OVER (PARTITION BY sector, industry, year ORDER BY (last_close - first_close) / first_close * 100 DESC) AS rank
+    FROM stock_changes
+    """
+)
 
-# # Trova il ticker corrispondente al max_percent_change per ciascuna industria e settore
-# max_change_ticker_df = industry_report_df.where(col("percent_change") == col("max_percent_change")) \
-#     .select("sector", "industry", "ticker_max_percent_change", "max_percent_change")
+stock_max_increment_df.createOrReplaceTempView("stock_max_increment")
 
-# # Trova il ticker corrispondente al max_volume per ciascuna industria e settore
-# max_volume_ticker_df = industry_report_df.where(col("volume") == col("max_volume")) \
-#     .select("sector", "industry", "ticker_max_volume", "max_volume")
 
-# # Unisci i risultati per ottenere il report finale
-# final_report_df = industry_report_selected_df.join(max_change_ticker_df, ["sector", "industry"]) \
-#     .join(max_volume_ticker_df, ["sector", "industry"])
+stock_max_increment_filtered_df = spark.sql(
+    """
+    SELECT
+        sector,
+        industry,
+        year,
+        ticker,
+        increment_percentage
+    FROM stock_max_increment
+    WHERE rank = 1
+    """
+)
+stock_max_increment_filtered_df.createOrReplaceTempView("stock_max_increment_filtered")
 
-# # Mostra il report finale
-# final_report_df.show(truncate=False)
+stock_total_volume_df = spark.sql(
+    """
+    SELECT
+        sector,
+        industry,
+        year,
+        ticker,
+        SUM(volume) AS total_volume
+    FROM stock_changes
+    GROUP BY sector, industry, year, ticker
+    """
+)
+stock_total_volume_df.createOrReplaceTempView("stock_total_volume")
 
-# Salva il DataFrame finale su Hadoop HDFS
-# industry_report_df.write \
+stock_max_total_volume_df = spark.sql(
+    """
+    SELECT
+        sector,
+        industry,
+        year,
+        ticker,
+        total_volume,
+        ROW_NUMBER() OVER (PARTITION BY sector, industry, year ORDER BY total_volume DESC) AS volume_rank
+    FROM stock_total_volume
+    """
+)
+stock_max_total_volume_df.createOrReplaceTempView("stock_max_total_volume")
+
+
+stock_max_total_volume_filtered_df = spark.sql(
+    """
+    SELECT
+        sector,
+        industry,
+        year,
+        ticker,
+        total_volume
+    FROM stock_max_total_volume
+    WHERE volume_rank = 1
+    """
+)
+stock_max_total_volume_filtered_df.createOrReplaceTempView("stock_max_total_volume_filtered")
+
+stock_max_total_volume_filtered_df.show()
+
+result = spark.sql(
+    """
+    SELECT
+        im.sector,
+        im.industry,
+        im.year,
+        ((im.industry_last_total - im.industry_first_total) / im.industry_first_total) * 100 AS industry_change_percentage,
+        smif.ticker AS max_increment_ticker,
+        smif.increment_percentage,
+        smv.ticker AS max_volume_ticker,
+        smv.total_volume
+    FROM
+        industry_metrics im
+    JOIN
+        stock_max_increment_filtered smif ON im.sector = smif.sector AND im.industry = smif.industry AND im.year = smif.year
+    JOIN
+        stock_max_total_volume_filtered smv ON im.sector = smv.sector AND im.industry = smv.industry AND im.year = smv.year
+    ORDER BY
+        im.sector, industry_change_percentage DESC
+
+    """
+)
+
+# # Mostrare il risultato
+result.show()
+
+# Salvare il risultato in un file CSV
+# result.write \
 #     .format("csv") \
 #     .mode("overwrite") \
 #     .option("header", "true") \
-#     .save("file:///home/addi/bigData/secondo_progetto/spark_sql")
-
-# Chiudi la sessione Spark
+#     .save("file:///home/addi/bigData/secondo_progetto/Big_Data_Second_Project/spark_sql/second_question/csv_file")
+# Fermare la sessione Spark
 spark.stop()
